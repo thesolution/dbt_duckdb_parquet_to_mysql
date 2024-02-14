@@ -1,0 +1,12 @@
+dbt_duckdb_parquet_to_mysql:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: dbt.duckdb
+      threads: 1
+      schema: app_schema
+      extensions:
+        - httpfs
+        - parquet
+        

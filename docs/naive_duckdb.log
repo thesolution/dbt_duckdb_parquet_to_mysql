@@ -1,0 +1,156 @@
+-- See more config options here: https://duckdb.org/docs/sql/configuration
+-- run 'from duckdb_settings();'
+set memory_limit = '1GB';
+set threads = 1;
+
+----------------------------------------------
+--         import from parquet
+----------------------------------------------
+-- drop table if exists
+DROP TABLE IF EXISTS raw_customers;
+
+-- create table from parquet
+CREATE TABLE raw_customers AS 
+SELECT
+    cnum as id,
+    fname as first_name,
+    lname as last_name,
+FROM read_parquet('external/raw_customers.parquet');
+
+
+----------------------------------------------
+--         export to mysql
+----------------------------------------------
+-- attach mysql to duckdb
+ATTACH 'mysql:host=127.0.0.1 port=33060 database=app_schema user=app_user password=app_pass' AS mysql;
+
+-- drop table if exists
+DROP TABLE IF EXISTS mysql.app_schema.duckdb_customers;
+
+-- create table
+CREATE TABLE mysql.app_schema.duckdb_customers AS SELECT * FROM raw_customers;
+
+
+----------------------------------------------
+--         show data from duckdb
+----------------------------------------------
+-- show 5 rows
+select * from raw_customers limit 5;
+┌───────┬────────────┬───────────┐
+│  id   │ first_name │ last_name │
+│ int64 │  varchar   │  varchar  │
+├───────┼────────────┼───────────┤
+│     1 │ Michael    │ P.        │
+│     2 │ Shawn      │ M.        │
+│     3 │ Kathleen   │ P.        │
+│     4 │ Jimmy      │ C.        │
+│     5 │ Katherine  │ R.        │
+└───────┴────────────┴───────────┘
+
+-- show row count
+select count(*) as 'raw_customers.count' from raw_customers;
+┌─────────────────────┐
+│ raw_customers.count │
+│        int64        │
+├─────────────────────┤
+│                 100 │
+└─────────────────────┘
+
+----------------------------------------------
+--         show data from mysql
+----------------------------------------------
+-- show 5 rows
+select * from mysql.app_schema.duckdb_customers limit 5;
+┌───────┬────────────┬───────────┐
+│  id   │ first_name │ last_name │
+│ int64 │  varchar   │  varchar  │
+├───────┼────────────┼───────────┤
+│     1 │ Michael    │ P.        │
+│     2 │ Shawn      │ M.        │
+│     3 │ Kathleen   │ P.        │
+│     4 │ Jimmy      │ C.        │
+│     5 │ Katherine  │ R.        │
+└───────┴────────────┴───────────┘
+
+-- show row count
+select count(*) as 'duckdb_customers.count' from mysql.app_schema.duckdb_customers limit 5;
+┌────────────────────────┐
+│ duckdb_customers.count │
+│         int64          │
+├────────────────────────┤
+│                    100 │
+└────────────────────────┘
+
+
+----------------------------------------------
+--         duckdb information_schema
+----------------------------------------------
+-- duckdb information_schema.tables
+SELECT table_catalog, table_schema, table_name, table_type,
+    is_insertable_into, is_typed from information_schema.tables
+    where table_schema != 'information_schema' and table_name not like 'dbt_%'
+    limit 10;
+┌───────────────┬──────────────┬──────────────────┬────────────┬────────────────────┬──────────┐
+│ table_catalog │ table_schema │    table_name    │ table_type │ is_insertable_into │ is_typed │
+│    varchar    │   varchar    │     varchar      │  varchar   │      varchar       │ varchar  │
+├───────────────┼──────────────┼──────────────────┼────────────┼────────────────────┼──────────┤
+│ duckdb        │ main         │ raw_customers    │ BASE TABLE │ YES                │ NO       │
+│ mysql         │ app_schema   │ duckdb_customers │ BASE TABLE │ YES                │ NO       │
+└───────────────┴──────────────┴──────────────────┴────────────┴────────────────────┴──────────┘
+
+-- duckdb information_schema.columns
+SELECT table_catalog, table_schema, table_name, column_name, ordinal_position,
+    column_default, is_nullable, data_type, character_maximum_length, character_octet_length,
+    numeric_precision, numeric_precision_radix, numeric_scale from information_schema.columns
+    where table_schema not in ('information_schema') and table_name not like 'dbt_%'
+    limit 10;
+┌───────────────┬──────────────┬──────────────────┬───┬───────────────────┬──────────────────────┬───────────────┐
+│ table_catalog │ table_schema │    table_name    │ … │ numeric_precision │ numeric_precision_…  │ numeric_scale │
+│    varchar    │   varchar    │     varchar      │   │       int32       │        int32         │     int32     │
+├───────────────┼──────────────┼──────────────────┼───┼───────────────────┼──────────────────────┼───────────────┤
+│ duckdb        │ main         │ raw_customers    │ … │                64 │                    2 │             0 │
+│ duckdb        │ main         │ raw_customers    │ … │                   │                      │               │
+│ duckdb        │ main         │ raw_customers    │ … │                   │                      │               │
+│ mysql         │ app_schema   │ duckdb_customers │ … │                64 │                    2 │             0 │
+│ mysql         │ app_schema   │ duckdb_customers │ … │                   │                      │               │
+│ mysql         │ app_schema   │ duckdb_customers │ … │                   │                      │               │
+├───────────────┴──────────────┴──────────────────┴───┴───────────────────┴──────────────────────┴───────────────┤
+│ 6 rows                                                                                    13 columns (6 shown) │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+----------------------------------------------
+--         mysql information_schema
+----------------------------------------------
+-- mysql information_schema.tables
+select replace(TABLE_CATALOG, 'def', 'mysql') AS 'TABLE_CATALOG', TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE, ENGINE, VERSION, ROW_FORMAT, 
+    TABLE_ROWS, AVG_ROW_LENGTH, DATA_LENGTH, MAX_DATA_LENGTH, INDEX_LENGTH, 
+    AUTO_INCREMENT, CREATE_TIME, UPDATE_TIME from mysql.information_schema.tables
+    where table_schema not in ('information_schema','performance_schema') and table_name not like 'dbt_%'
+    limit 10;
+┌───────────────┬──────────────┬──────────────────┬───┬────────────────┬──────────────────────┬─────────────────────┐
+│ TABLE_CATALOG │ TABLE_SCHEMA │    TABLE_NAME    │ … │ AUTO_INCREMENT │     CREATE_TIME      │     UPDATE_TIME     │
+│    varchar    │   varchar    │     varchar      │   │     uint64     │ timestamp with tim…  │      timestamp      │
+├───────────────┼──────────────┼──────────────────┼───┼────────────────┼──────────────────────┼─────────────────────┤
+│ mysql         │ app_schema   │ duckdb_customers │ … │                │ 2024-02-14 14:28:3…  │ 2024-02-14 14:28:32 │
+├───────────────┴──────────────┴──────────────────┴───┴────────────────┴──────────────────────┴─────────────────────┤
+│ 1 rows                                                                                       15 columns (6 shown) │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+-- mysql information_schema.columns
+select replace(TABLE_CATALOG, 'def', 'mysql') AS 'TABLE_CATALOG', TABLE_SCHEMA, TABLE_NAME,
+    COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH,
+    NUMERIC_PRECISION, NUMERIC_SCALE, DATETIME_PRECISION from mysql.information_schema.columns
+    where table_schema not in ('information_schema','performance_schema') and table_name not like 'dbt_%'
+    limit 10;
+┌───────────────┬──────────────┬──────────────────┬───┬───────────────────┬───────────────┬────────────────────┐
+│ TABLE_CATALOG │ TABLE_SCHEMA │    TABLE_NAME    │ … │ NUMERIC_PRECISION │ NUMERIC_SCALE │ DATETIME_PRECISION │
+│    varchar    │   varchar    │     varchar      │   │      uint64       │    uint64     │       uint32       │
+├───────────────┼──────────────┼──────────────────┼───┼───────────────────┼───────────────┼────────────────────┤
+│ mysql         │ app_schema   │ duckdb_customers │ … │                   │               │                    │
+│ mysql         │ app_schema   │ duckdb_customers │ … │                19 │             0 │                    │
+│ mysql         │ app_schema   │ duckdb_customers │ … │                   │               │                    │
+├───────────────┴──────────────┴──────────────────┴───┴───────────────────┴───────────────┴────────────────────┤
+│ 3 rows                                                                                  12 columns (6 shown) │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+

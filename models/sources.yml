@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: external_source
+    tables:
+      - name: raw_customers
+        meta:
+          external_location: read_parquet('external/raw_customers.parquet')
