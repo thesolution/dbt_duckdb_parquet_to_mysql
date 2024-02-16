@@ -59,3 +59,8 @@ naive-build:
 
 
 # grep --extended-regexp --ignore-case --only-matching '^[^=<>]*' requirements.txt 
+
+rerun:
+	# rm -rf dbt.duckdb
+	dbt clean
+	dbt build --debug

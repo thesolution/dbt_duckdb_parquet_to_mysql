@@ -1,6 +1,2 @@
-{{ config(
-    database="mysql"
-) }}
 
-
-select * from {{ rel('raw_customers') }} 
+select * from {{ ref('stg_customers') }} 

@@ -15,9 +15,10 @@ clean-targets:
 
 models:
   dbt_duckdb_parquet_to_mysql:
+    materialized: table
+    database: mysql
+    schema: app_schema
     staging:
-      materialized: view
-
-on-run-start:
-  - "{{ log('Running dbt_duckdb_parquet_to_mysql') }}"
-  - "{{ attach_vars_mysql('mysql') }}"
+      database: dbt
+      schema: main
+      materialized: table

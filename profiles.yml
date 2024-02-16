@@ -5,8 +5,12 @@ dbt_duckdb_parquet_to_mysql:
       type: duckdb
       path: dbt.duckdb
       threads: 1
-      schema: app_schema
+      # keep_open: true
       extensions:
         - httpfs
         - parquet
+      attach:
+        - alias: mysql
+          type: mysql
+          path: 'host=127.0.0.1 user=app_user password=app_pass database=app_schema port=33060'
         
